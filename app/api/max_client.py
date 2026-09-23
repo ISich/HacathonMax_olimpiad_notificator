@@ -3,9 +3,14 @@ import requests
 
 class MaxClient:
 
-    def __init__(self, token: str, base_url: str):
-
+    def __init__(
+        self,
+        token: str,
+        base_url: str,
+        verify_ssl: bool = True
+    ):
         self.base_url = base_url
+        self.verify_ssl = verify_ssl
 
         self.headers = {
             "Authorization": token,
@@ -24,7 +29,8 @@ class MaxClient:
         response = requests.get(
             self.base_url + "/updates",
             headers=self.headers,
-            params=params
+            params=params,
+            verify=self.verify_ssl
         )
 
         response.raise_for_status()
@@ -49,7 +55,8 @@ class MaxClient:
             self.base_url + "/messages",
             headers=self.headers,
             params={"chat_id": chat_id},
-            json=body
+            json=body,
+            verify=self.verify_ssl
         )
 
         response.raise_for_status()
@@ -57,11 +64,12 @@ class MaxClient:
         return response.json()
 
     def edit_message(
-            self,
-            message_id: str,
-            text: str,
-            attachments=None
+        self,
+        message_id: str,
+        text: str,
+        attachments=None
     ):
+
         body = {
             "text": text,
             "attachments": attachments if attachments is not None else []
@@ -71,7 +79,25 @@ class MaxClient:
             self.base_url + "/messages",
             headers=self.headers,
             params={"message_id": message_id},
-            json=body
+            json=body,
+            verify=self.verify_ssl
+        )
+
+        response.raise_for_status()
+
+        return response.json()
+
+    def set_commands(self, commands: list[dict]):
+
+        body = {
+            "commands": commands
+        }
+
+        response = requests.patch(
+            self.base_url + "/me/commands",
+            headers=self.headers,
+            json=body,
+            verify=self.verify_ssl
         )
 
         response.raise_for_status()
