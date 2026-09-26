@@ -2,16 +2,24 @@ from app.bot.keyboards import (
     subjects_keyboard,
     olympiad_selection_keyboard,
     levels_keyboard,
-    grade_keyboard
+    grade_keyboard,
+    my_olympiads_keyboard, profile_keyboard,
+    specific_olympiads_keyboard
 )
 from app.constants import SUBJECTS
 
 
 class CallbackHandler:
 
-    def __init__(self, max_client, user_service):
+    def __init__(
+            self,
+            max_client,
+            user_service,
+            olympiad_service
+    ):
         self.max_client = max_client
         self.user_service = user_service
+        self.olympiad_service = olympiad_service
 
     def handle(self, update):
 
@@ -43,6 +51,17 @@ class CallbackHandler:
                 message_id=message_id
             )
 
+        elif payload == "restart:confirm":
+            self.handle_restart_confirm(
+                user_id=user_id,
+                message_id=message_id
+            )
+
+        elif payload == "restart:cancel":
+            self.handle_restart_cancel(
+                message_id=message_id
+            )
+
         elif payload == "olympiads:all":
             self.handle_all_olympiads(
                 user_id=user_id,
@@ -57,7 +76,35 @@ class CallbackHandler:
 
         elif payload == "olympiads:specific":
             self.handle_specific_olympiads(
+                user_id=user_id,
                 message_id=message_id
+            )
+
+        elif payload.startswith("specific:toggle:"):
+            self.handle_specific_toggle(
+                user_id=user_id,
+                message_id=message_id,
+                payload=payload
+            )
+
+        elif payload.startswith("specific:page:"):
+            self.handle_specific_page(
+                user_id=user_id,
+                message_id=message_id,
+                payload=payload
+            )
+
+        elif payload == "specific:done":
+            self.handle_specific_done(
+                user_id=user_id,
+                message_id=message_id
+            )
+
+        elif payload.startswith("olympiad:remove:"):
+            self.handle_remove_olympiad(
+                user_id=user_id,
+                message_id=message_id,
+                payload=payload
             )
 
         elif payload == "profile:grade":
@@ -76,6 +123,19 @@ class CallbackHandler:
             self.handle_profile_olympiads(
                 user_id=user_id,
                 message_id=message_id
+            )
+
+        elif payload == "profile:back":
+            self.handle_profile_back(
+                user_id=user_id,
+                message_id=message_id
+            )
+
+        elif payload.startswith("olympiads:page:"):
+            self.handle_olympiads_page(
+                user_id=user_id,
+                message_id=message_id,
+                payload=payload
             )
 
         elif payload.startswith("level:"):
@@ -137,14 +197,18 @@ class CallbackHandler:
 
     def handle_subject(self, user_id, message_id, payload):
 
-        subject = payload.split(":")[1]
+        subject_code = payload.split(":")[1]
 
         self.user_service.toggle_subject(
             user_id=user_id,
-            subject=subject
+            subject_code=subject_code
         )
 
         user = self.user_service.get_user(user_id)
+
+        selected_subjects = self.user_service.get_subjects(
+            user_id
+        )
 
         self.max_client.edit_message(
             message_id=message_id,
@@ -153,7 +217,7 @@ class CallbackHandler:
                 "Выбери интересующие тебя предметы:"
             ),
             attachments=[
-                subjects_keyboard(user.subjects)
+                subjects_keyboard(selected_subjects)
             ]
         )
 
@@ -161,34 +225,33 @@ class CallbackHandler:
 
         user = self.user_service.get_user(user_id)
 
+        selected_subjects = self.user_service.get_subjects(
+            user_id
+        )
+
+        if not selected_subjects:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text=(
+                    f"✓ Выбран {user.grade} класс.\n\n"
+                    "⚠ Выбери хотя бы один предмет."
+                ),
+                attachments=[
+                    subjects_keyboard(selected_subjects)
+                ]
+            )
+            return
+
+        subject_names = [
+            SUBJECTS[subject]
+            for subject in selected_subjects
+        ]
+
+        # Если редактировали предметы из профиля
         if user.edit_mode == "subjects":
-
-            if not user.subjects:
-                self.max_client.edit_message(
-                    message_id=message_id,
-                    text="⚠ Выбери хотя бы один предмет.",
-                    attachments=[
-                        subjects_keyboard(user.subjects)
-                    ]
-                )
-                return
-
-            removed_subjects = self.user_service.finish_subjects_edit(
+            self.user_service.finish_subjects_edit(
                 user_id
             )
-
-            print(
-                f"Пользователь {user_id} удалил предметы: "
-                f"{removed_subjects}"
-            )
-
-            # TODO: после подключения БД удалить
-            # подписки на олимпиады по removed_subjects
-
-            subject_names = [
-                SUBJECTS[subject]
-                for subject in user.subjects
-            ]
 
             self.max_client.edit_message(
                 message_id=message_id,
@@ -200,22 +263,7 @@ class CallbackHandler:
 
             return
 
-        if not user.subjects:
-            self.max_client.edit_message(
-                message_id=message_id,
-                text=(
-                    f"✓ Выбран {user.grade} класс.\n\n"
-                    "⚠ Выбери хотя бы один предмет."
-                ),
-                attachments=[subjects_keyboard(user.subjects)]
-            )
-            return
-
-        subject_names = [
-            SUBJECTS[subject]
-            for subject in user.subjects
-        ]
-
+        # Первичная настройка
         self.max_client.edit_message(
             message_id=message_id,
             text=(
@@ -223,21 +271,24 @@ class CallbackHandler:
                 f"✓ Предметы: {', '.join(subject_names)}\n\n"
                 "Как выбрать олимпиады?"
             ),
-            attachments=[olympiad_selection_keyboard()]
+            attachments=[
+                olympiad_selection_keyboard()
+            ]
         )
 
     def handle_levels_start(self, user_id, message_id):
 
-        user = self.user_service.get_user(user_id)
+        selected_levels = self.user_service.get_selected_levels(
+            user_id
+        )
 
         self.max_client.edit_message(
             message_id=message_id,
             text="Выбери уровни олимпиад:",
             attachments=[
-                levels_keyboard(user.selected_levels)
+                levels_keyboard(selected_levels)
             ]
         )
-
 
     def handle_level(self, user_id, message_id, payload):
 
@@ -248,70 +299,155 @@ class CallbackHandler:
             level=level
         )
 
-        user = self.user_service.get_user(user_id)
+        selected_levels = self.user_service.get_selected_levels(
+            user_id
+        )
 
         self.max_client.edit_message(
             message_id=message_id,
             text="Выбери уровни олимпиад:",
             attachments=[
-                levels_keyboard(user.selected_levels)
+                levels_keyboard(selected_levels)
             ]
         )
-
 
     def handle_levels_done(self, user_id, message_id):
 
         user = self.user_service.get_user(user_id)
 
-        if not user.selected_levels:
+        selected_levels = self.user_service.get_selected_levels(
+            user_id
+        )
+
+        selected_subjects = self.user_service.get_subjects(
+            user_id
+        )
+
+        if not selected_levels:
             self.max_client.edit_message(
                 message_id=message_id,
                 text="⚠ Выбери хотя бы один уровень.",
                 attachments=[
-                    levels_keyboard(user.selected_levels)
+                    levels_keyboard(selected_levels)
                 ]
             )
             return
 
-        levels = ", ".join(
-            str(level)
-            for level in sorted(user.selected_levels)
+        olympiads = self.olympiad_service.find_for_user(
+            grade=user.grade,
+            subject_codes=selected_subjects,
+            levels=selected_levels
         )
+
+        if not olympiads:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text=(
+                    "По выбранным предметам, классу "
+                    "и уровням олимпиад ничего не найдено."
+                )
+            )
+            return
+
+        self.user_service.set_olympiads(
+            user_id=user_id,
+            olympiads=olympiads
+        )
+
+        olympiad_names = [
+            f"• {olympiad.name} — {olympiad.level} уровень"
+            for olympiad in olympiads
+        ]
 
         self.max_client.edit_message(
             message_id=message_id,
             text=(
-                "✓ Настройка завершена!\n\n"
-                f"Класс: {user.grade}\n"
-                f"Уровни олимпиад: {levels}"
+                    "✓ Подходящие олимпиады:\n\n"
+                    + "\n".join(olympiad_names)
             )
         )
-
 
     def handle_all_olympiads(self, user_id, message_id):
 
         user = self.user_service.get_user(user_id)
 
+        selected_subjects = self.user_service.get_subjects(
+            user_id
+        )
+
+        olympiads = self.olympiad_service.find_for_user(
+            grade=user.grade,
+            subject_codes=selected_subjects
+        )
+
+        if not olympiads:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text=(
+                    "По выбранным настройкам "
+                    "подходящих олимпиад не найдено."
+                )
+            )
+            return
+
+        self.user_service.set_olympiads(
+            user_id=user_id,
+            olympiads=olympiads
+        )
+
+        olympiad_names = [
+            f"• {olympiad.name} — {olympiad.level} уровень"
+            for olympiad in olympiads
+        ]
+
         self.max_client.edit_message(
             message_id=message_id,
             text=(
-                "✓ Настройка завершена!\n\n"
-                f"Класс: {user.grade}\n"
-                "Олимпиады: все подходящие.\n\n"
-                "Когда подключим базу, здесь сформируется "
-                "конкретный список олимпиад."
+                    "✓ Подходящие олимпиады:\n\n"
+                    + "\n".join(olympiad_names)
             )
         )
 
+    def handle_specific_olympiads(
+            self,
+            user_id,
+            message_id,
+            page=0
+    ):
+        user = self.user_service.get_user(user_id)
 
-    def handle_specific_olympiads(self, message_id):
+        selected_subjects = self.user_service.get_subjects(
+            user_id
+        )
+
+        olympiads = self.olympiad_service.find_for_user(
+            grade=user.grade,
+            subject_codes=selected_subjects
+        )
+
+        if not olympiads:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text="Подходящих олимпиад не найдено."
+            )
+            return
+
+        selected_ids = {
+            str(olympiad.id)
+            for olympiad in user.olympiads
+        }
 
         self.max_client.edit_message(
             message_id=message_id,
-            text=(
-                "Выбор конкретных олимпиад будет доступен "
-                "после подключения базы данных."
-            )
+            text="Выбери конкретные олимпиады:",
+            attachments=[
+                specific_olympiads_keyboard(
+                    olympiads=olympiads,
+                    selected_ids=selected_ids,
+                    page=page,
+                    page_size=5
+                )
+            ]
         )
 
     def handle_profile_grade(self, user_id, message_id):
@@ -330,24 +466,226 @@ class CallbackHandler:
 
         self.user_service.start_subjects_edit(user_id)
 
-        user = self.user_service.get_user(user_id)
+        selected_subjects = self.user_service.get_subjects(
+            user_id
+        )
 
         self.max_client.edit_message(
             message_id=message_id,
             text="Измени список интересующих тебя предметов:",
             attachments=[
-                subjects_keyboard(user.subjects)
+                subjects_keyboard(selected_subjects)
             ]
         )
 
-    def handle_profile_olympiads(self, user_id, message_id):
-
+    def handle_profile_olympiads(
+            self,
+            user_id,
+            message_id,
+            page=0
+    ):
         user = self.user_service.get_user(user_id)
+
+        if not user.olympiads:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text="У тебя пока нет сохранённых олимпиад."
+            )
+            return
+
+        page_size = 2
+
+        total_pages = max(
+            1,
+            (len(user.olympiads) + page_size - 1) // page_size
+        )
+
+        page = max(0, min(page, total_pages - 1))
+
+        start = page * page_size
+        end = start + page_size
+
+        page_olympiads = user.olympiads[start:end]
+
+        olympiad_names = [
+            f"• {olympiad.name} — {olympiad.level} уровень"
+            for olympiad in page_olympiads
+        ]
 
         self.max_client.edit_message(
             message_id=message_id,
             text=(
-                f"Сохранено олимпиад: {len(user.olympiads)}.\n\n"
-                "Список олимпиад подключим после появления базы данных."
+                    "🏆 Мои олимпиады:\n\n"
+                    + "\n".join(olympiad_names)
+            ),
+            attachments=[
+                my_olympiads_keyboard(
+                    user.olympiads,
+                    page=page,
+                    page_size=page_size
+                )
+            ]
+        )
+
+    def handle_olympiads_page(
+            self,
+            user_id,
+            message_id,
+            payload
+    ):
+        page = int(payload.split(":")[2])
+
+        self.handle_profile_olympiads(
+            user_id=user_id,
+            message_id=message_id,
+            page=page
+        )
+
+    def handle_profile_back(
+            self,
+            user_id,
+            message_id
+    ):
+        user = self.user_service.get_user(user_id)
+
+        subject_codes = self.user_service.get_subjects(user_id)
+
+        subject_names = [
+            SUBJECTS[code]
+            for code in subject_codes
+        ]
+
+        subjects_text = ", ".join(subject_names)
+
+        self.max_client.edit_message(
+            message_id=message_id,
+            text=(
+                "👤 Твой профиль\n\n"
+                f"Класс: {user.grade}\n"
+                f"Предметы: {subjects_text}"
+            ),
+            attachments=[
+                profile_keyboard()
+            ]
+        )
+
+    def handle_remove_olympiad(
+            self,
+            user_id,
+            message_id,
+            payload
+    ):
+        parts = payload.split(":")
+
+        olympiad_id = parts[2]
+        page = int(parts[3])
+
+        self.user_service.remove_olympiad(
+            user_id=user_id,
+            olympiad_id=olympiad_id
+        )
+
+        self.handle_profile_olympiads(
+            user_id=user_id,
+            message_id=message_id,
+            page=page
+        )
+
+    def handle_specific_toggle(
+            self,
+            user_id,
+            message_id,
+            payload
+    ):
+        parts = payload.split(":")
+
+        olympiad_id = parts[2]
+        page = int(parts[3])
+
+        olympiad = self.olympiad_service.get_olympiad(
+            olympiad_id
+        )
+
+        if olympiad is None:
+            return
+
+        self.user_service.toggle_olympiad(
+            user_id=user_id,
+            olympiad=olympiad
+        )
+
+        self.handle_specific_olympiads(
+            user_id=user_id,
+            message_id=message_id,
+            page=page
+        )
+
+    def handle_specific_page(
+            self,
+            user_id,
+            message_id,
+            payload
+    ):
+        page = int(payload.split(":")[2])
+
+        self.handle_specific_olympiads(
+            user_id=user_id,
+            message_id=message_id,
+            page=page
+        )
+
+    def handle_specific_done(
+            self,
+            user_id,
+            message_id
+    ):
+        user = self.user_service.get_user(user_id)
+
+        if not user.olympiads:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text=(
+                    "Выбери хотя бы одну олимпиаду."
+                )
             )
+            return
+
+        olympiad_names = [
+            f"• {olympiad.name} — {olympiad.level} уровень"
+            for olympiad in user.olympiads
+        ]
+
+        self.max_client.edit_message(
+            message_id=message_id,
+            text=(
+                    "✓ Олимпиады сохранены:\n\n"
+                    + "\n".join(olympiad_names)
+            )
+        )
+
+    def handle_restart_confirm(
+            self,
+            user_id,
+            message_id
+    ):
+        self.user_service.reset_user(user_id)
+
+        self.max_client.edit_message(
+            message_id=message_id,
+            text=(
+                "Профиль очищен.\n\n"
+                "В каком классе ты учишься?"
+            ),
+            attachments=[
+                grade_keyboard()
+            ]
+        )
+
+    def handle_restart_cancel(
+            self,
+            message_id
+    ):
+        self.max_client.edit_message(
+            message_id=message_id,
+            text="Настройка отменена. Данные профиля сохранены."
         )

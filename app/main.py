@@ -3,9 +3,17 @@ from app.api.max_client import MaxClient
 from app.bot.bot import Bot
 from app.bot.handlers import MessageHandler
 from app.bot.callback_handlers import CallbackHandler
+
 from app.services.user_servics import UserService
-from app.constants import BOT_COMMANDS
+from app.services.olympiad_service import OlympiadService
+
 from app.repositories.user_repository import UserRepository
+from app.repositories.olympiad_repository import OlympiadRepository
+from app.repositories.subject_repository import SubjectRepository
+
+from app.database.session import SessionLocal
+
+from app.constants import BOT_COMMANDS
 
 
 def main():
@@ -18,10 +26,21 @@ def main():
 
     max_client.set_commands(BOT_COMMANDS)
 
-    user_repository = UserRepository()
+    # Пока держим одну DB-сессию на время работы бота.
+    # Позже перед деплоем сделаем нормальный lifecycle сессий.
+    session = SessionLocal()
+
+    user_repository = UserRepository(session)
+    subject_repository = SubjectRepository(session)
+    olympiad_repository = OlympiadRepository(session)
 
     user_service = UserService(
-        user_repository=user_repository
+        user_repository=user_repository,
+        subject_repository=subject_repository
+    )
+
+    olympiad_service = OlympiadService(
+        olympiad_repository=olympiad_repository
     )
 
     message_handler = MessageHandler(
@@ -31,7 +50,8 @@ def main():
 
     callback_handler = CallbackHandler(
         max_client=max_client,
-        user_service=user_service
+        user_service=user_service,
+        olympiad_service=olympiad_service
     )
 
     bot = Bot(
@@ -40,7 +60,10 @@ def main():
         callback_handler=callback_handler
     )
 
-    bot.run()
+    try:
+        bot.run()
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":

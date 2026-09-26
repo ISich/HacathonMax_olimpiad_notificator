@@ -151,3 +151,173 @@ def profile_keyboard():
             ]
         }
     }
+
+def my_olympiads_keyboard(
+    olympiads,
+    page: int = 0,
+    page_size: int = 5
+):
+    buttons = []
+
+    total = len(olympiads)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+
+    # Чтобы страница не вышла за допустимые границы
+    page = max(0, min(page, total_pages - 1))
+
+    start = page * page_size
+    end = start + page_size
+
+    page_olympiads = olympiads[start:end]
+
+    # Олимпиады текущей страницы
+    for olympiad in page_olympiads:
+        buttons.append([
+            {
+                "type": "callback",
+                "text": f"❌ {olympiad.name}",
+                "payload": f"olympiad:remove:{olympiad.id}:{page}"
+            }
+        ])
+
+    # Перелистывание
+    if total_pages > 1:
+        navigation = []
+
+        if page > 0:
+            navigation.append({
+                "type": "callback",
+                "text": "◀️",
+                "payload": f"olympiads:page:{page - 1}"
+            })
+
+        navigation.append({
+            "type": "callback",
+            "text": f"{page + 1} / {total_pages}",
+            "payload": "olympiads:page_info"
+        })
+
+        if page < total_pages - 1:
+            navigation.append({
+                "type": "callback",
+                "text": "▶️",
+                "payload": f"olympiads:page:{page + 1}"
+            })
+
+        buttons.append(navigation)
+
+    # Назад в профиль
+    buttons.append([
+        {
+            "type": "callback",
+            "text": "← Назад",
+            "payload": "profile:back"
+        }
+    ])
+
+    return {
+        "type": "inline_keyboard",
+        "payload": {
+            "buttons": buttons
+        }
+    }
+
+def specific_olympiads_keyboard(
+    olympiads,
+    selected_ids: set[str],
+    page: int = 0,
+    page_size: int = 5
+):
+    buttons = []
+
+    total = len(olympiads)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+
+    page = max(0, min(page, total_pages - 1))
+
+    start = page * page_size
+    end = start + page_size
+
+    page_olympiads = olympiads[start:end]
+
+    for olympiad in page_olympiads:
+
+        olympiad_id = str(olympiad.id)
+
+        if olympiad_id in selected_ids:
+            text = f"✓ {olympiad.name}"
+        else:
+            text = olympiad.name
+
+        buttons.append([
+            {
+                "type": "callback",
+                "text": text,
+                "payload": (
+                    f"specific:toggle:{olympiad.id}:{page}"
+                )
+            }
+        ])
+
+    if total_pages > 1:
+        navigation = []
+
+        if page > 0:
+            navigation.append({
+                "type": "callback",
+                "text": "◀️",
+                "payload": f"specific:page:{page - 1}"
+            })
+
+        navigation.append({
+            "type": "callback",
+            "text": f"{page + 1} / {total_pages}",
+            "payload": "specific:page_info"
+        })
+
+        if page < total_pages - 1:
+            navigation.append({
+                "type": "callback",
+                "text": "▶️",
+                "payload": f"specific:page:{page + 1}"
+            })
+
+        buttons.append(navigation)
+
+    buttons.append([
+        {
+            "type": "callback",
+            "text": "Готово",
+            "payload": "specific:done"
+        }
+    ])
+
+    return {
+        "type": "inline_keyboard",
+        "payload": {
+            "buttons": buttons
+        }
+    }
+
+def restart_keyboard():
+    return {
+        "type": "inline_keyboard",
+        "payload": {
+            "buttons": [
+                [
+                    {
+                        "type": "callback",
+                        "text": "⚠️ Начать заново",
+                        "payload": "restart:confirm"
+                    }
+                ],
+                [
+                    {
+                        "type": "callback",
+                        "text": "Отмена",
+                        "payload": "restart:cancel"
+                    }
+                ]
+            ]
+        }
+    }

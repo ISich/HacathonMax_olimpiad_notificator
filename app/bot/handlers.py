@@ -1,5 +1,4 @@
-from app.constants import SUBJECTS
-from app.bot.keyboards import grade_keyboard, profile_keyboard
+from app.bot.keyboards import grade_keyboard, profile_keyboard, restart_keyboard
 
 
 class MessageHandler:
@@ -18,7 +17,10 @@ class MessageHandler:
         print(f"Получено от {user_id}: {text}")
 
         if text.lower() == "/start":
-            self.handle_start(chat_id)
+            self.handle_start(
+                chat_id=chat_id,
+                user_id=user_id
+            )
 
         elif text.lower() == "/profile":
             self.handle_profile(
@@ -29,7 +31,23 @@ class MessageHandler:
         else:
             self.handle_unknown(chat_id)
 
-    def handle_start(self, chat_id):
+    def handle_start(self, chat_id, user_id):
+
+        user = self.user_service.get_user(user_id)
+
+        if user is not None and user.grade is not None:
+            self.max_client.send_message(
+                chat_id=chat_id,
+                text=(
+                    "⚠️ Ты уже настроил профиль.\n\n"
+                    "Если начать настройку заново, "
+                    "текущий класс, предметы и выбранные "
+                    "олимпиады будут удалены.\n\n"
+                    "Начать заново?"
+                ),
+                attachments=[restart_keyboard()]
+            )
+            return
 
         self.max_client.send_message(
             chat_id=chat_id,
@@ -64,7 +82,7 @@ class MessageHandler:
             return
 
         subject_names = [
-            SUBJECTS[subject]
+            subject.name
             for subject in user.subjects
         ]
 
