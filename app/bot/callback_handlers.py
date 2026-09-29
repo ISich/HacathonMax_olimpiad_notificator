@@ -4,9 +4,10 @@ from app.bot.keyboards import (
     levels_keyboard,
     grade_keyboard,
     my_olympiads_keyboard, profile_keyboard,
-    specific_olympiads_keyboard
+    specific_olympiads_keyboard,
+    setup_complete_keyboard
 )
-from app.constants import SUBJECTS
+from app.constants import SUBJECTS, AVAILABLE_SUBJECTS
 
 
 class CallbackHandler:
@@ -125,6 +126,12 @@ class CallbackHandler:
                 message_id=message_id
             )
 
+        elif payload == "profile:deadlines":
+            self.handle_profile_deadlines(
+                user_id=user_id,
+                message_id=message_id
+            )
+
         elif payload == "profile:back":
             self.handle_profile_back(
                 user_id=user_id,
@@ -199,12 +206,36 @@ class CallbackHandler:
 
         subject_code = payload.split(":")[1]
 
+        user = self.user_service.get_user(user_id)
+
+        if subject_code not in AVAILABLE_SUBJECTS:
+            subject_name = SUBJECTS.get(
+                subject_code,
+                "этому предмету",
+            )
+
+            selected_subjects = self.user_service.get_subjects(
+                user_id
+            )
+
+            self.max_client.edit_message(
+                message_id=message_id,
+                text=(
+                    f"По предмету «{subject_name}» "
+                    "пока нет олимпиад в базе.\n\n"
+                    "Выбери другой предмет:"
+                ),
+                attachments=[
+                    subjects_keyboard(selected_subjects)
+                ]
+            )
+
+            return
+
         self.user_service.toggle_subject(
             user_id=user_id,
             subject_code=subject_code
         )
-
-        user = self.user_service.get_user(user_id)
 
         selected_subjects = self.user_service.get_subjects(
             user_id
@@ -264,7 +295,10 @@ class CallbackHandler:
                     f"Предметы: {', '.join(subject_names)}\n\n"
                     "Олимпиады по удалённым предметам "
                     "удалены из сохранённых."
-                )
+                ),
+                attachments=[
+                    profile_keyboard()
+                ]
             )
 
             return
@@ -370,7 +404,10 @@ class CallbackHandler:
             text=(
                     "✓ Подходящие олимпиады:\n\n"
                     + "\n".join(olympiad_names)
-            )
+            ),
+            attachments=[
+                setup_complete_keyboard()
+            ]
         )
 
     def handle_all_olympiads(self, user_id, message_id):
@@ -411,7 +448,10 @@ class CallbackHandler:
             text=(
                     "✓ Подходящие олимпиады:\n\n"
                     + "\n".join(olympiad_names)
-            )
+            ),
+            attachments=[
+                setup_complete_keyboard()
+            ]
         )
 
     def handle_specific_olympiads(
@@ -495,7 +535,10 @@ class CallbackHandler:
         if not user.olympiads:
             self.max_client.edit_message(
                 message_id=message_id,
-                text="У тебя пока нет сохранённых олимпиад."
+                text="У тебя пока нет сохранённых олимпиад.",
+                attachments=[
+                    profile_keyboard()
+                ]
             )
             return
 
@@ -581,6 +624,119 @@ class CallbackHandler:
             ),
             attachments=[
                 profile_keyboard()
+            ]
+        )
+
+    def handle_profile_deadlines(
+            self,
+            user_id,
+            message_id,
+    ):
+        user = self.user_service.get_user(user_id)
+
+        if not user.olympiads:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text="У тебя пока нет сохранённых олимпиад.",
+                attachments=[
+                    profile_keyboard()
+                ]
+            )
+            return
+
+        dated_events = []
+        unknown_events = []
+
+        for olympiad in user.olympiads:
+            subjects_text = ", ".join(
+                subject.name
+                for subject in olympiad.subjects
+            )
+            for stage in olympiad.stages:
+
+                events = [
+                    (
+                        stage.registration_start,
+                        f"Начало регистрации — {stage.name}",
+                    ),
+                    (
+                        stage.registration_end,
+                        f"Конец регистрации — {stage.name}",
+                    ),
+                    (
+                        stage.stage_start,
+                        f"Начало этапа — {stage.name}",
+                    ),
+                    (
+                        stage.stage_end,
+                        f"Конец этапа — {stage.name}",
+                    ),
+                ]
+
+                for event_date, event_name in events:
+
+                    if event_date is not None:
+                        dated_events.append(
+                            (
+                                event_date,
+                                olympiad.name,
+                                subjects_text,
+                                event_name,
+                            )
+                        )
+                    else:
+                        unknown_events.append(
+                            (
+                                olympiad.name,
+                                subjects_text,
+                                event_name,
+                            )
+                        )
+
+        dated_events.sort(
+            key=lambda item: item[0]
+        )
+
+        lines = ["📅 Все сроки:\n"]
+
+        for event_date, olympiad_name, subjects_text, event_name in dated_events:
+            lines.append(
+                f"{event_date:%d.%m.%Y} — "
+                f"{olympiad_name}\n"
+                f"📚 {subjects_text}\n"
+                f"• {event_name}"
+            )
+
+        if unknown_events:
+            lines.append(
+                "\n❔ Даты пока не определены:"
+            )
+
+            for olympiad_name, subjects_text, event_name in unknown_events:
+                lines.append(
+                    f"{olympiad_name}\n"
+                    f"📚 {subjects_text}\n"
+                    f"• {event_name}"
+                )
+
+        self.max_client.edit_message(
+            message_id=message_id,
+            text="\n\n".join(lines),
+            attachments=[
+                {
+                    "type": "inline_keyboard",
+                    "payload": {
+                        "buttons": [
+                            [
+                                {
+                                    "type": "callback",
+                                    "text": "← Назад",
+                                    "payload": "profile:back"
+                                }
+                            ]
+                        ]
+                    }
+                }
             ]
         )
 
@@ -675,7 +831,10 @@ class CallbackHandler:
             text=(
                     "✓ Олимпиады сохранены:\n\n"
                     + "\n".join(olympiad_names)
-            )
+            ),
+            attachments=[
+                setup_complete_keyboard()
+            ]
         )
 
     def handle_restart_confirm(

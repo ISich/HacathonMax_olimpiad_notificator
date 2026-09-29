@@ -1,4 +1,9 @@
-from app.constants import GRADES, SUBJECTS, OLYMPIAD_LEVELS
+from app.constants import (
+    GRADES,
+    SUBJECTS,
+    OLYMPIAD_LEVELS,
+    AVAILABLE_SUBJECTS,
+)
 
 
 def grade_keyboard():
@@ -31,6 +36,10 @@ def subjects_keyboard(selected_subjects: set[str]):
 
         if code in selected_subjects:
             text = f"✓ {name}"
+
+        elif code not in AVAILABLE_SUBJECTS:
+            text = f"⏳ {name}"
+
         else:
             text = name
 
@@ -45,7 +54,6 @@ def subjects_keyboard(selected_subjects: set[str]):
     for i in range(0, len(s_buttons), 2):
         buttons.append(s_buttons[i:i + 2])
 
-    # Отдельная кнопка "Готово"
     buttons.append([
         {
             "type": "callback",
@@ -146,6 +154,13 @@ def profile_keyboard():
                         "type": "callback",
                         "text": "Мои олимпиады",
                         "payload": "profile:olympiads"
+                    }
+                ],
+                [
+                    {
+                        "type": "callback",
+                        "text": "📅 Все сроки",
+                        "payload": "profile:deadlines"
                     }
                 ]
             ]
@@ -316,6 +331,22 @@ def restart_keyboard():
                         "type": "callback",
                         "text": "Отмена",
                         "payload": "restart:cancel"
+                    }
+                ]
+            ]
+        }
+    }
+
+def setup_complete_keyboard():
+    return {
+        "type": "inline_keyboard",
+        "payload": {
+            "buttons": [
+                [
+                    {
+                        "type": "callback",
+                        "text": "👤 Перейти в профиль",
+                        "payload": "profile:back"
                     }
                 ]
             ]

@@ -9,6 +9,11 @@ SUBJECTS = {
     "russian": "Русский язык"
 }
 
+AVAILABLE_SUBJECTS = {
+    "math",
+    "informatics",
+}
+
 OLYMPIAD_LEVELS = {
     1: "I уровень",
     2: "II уровень",
@@ -23,5 +28,9 @@ BOT_COMMANDS = [
     {
         "name": "profile",
         "description": "Мой профиль и настройки"
+    },
+    {
+        "name": "info",
+        "description": "Информация о боте и командах"
     }
 ]
