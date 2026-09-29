@@ -21,7 +21,6 @@ services:
     environment:
       MAX_TOKEN: ${MAX_TOKEN}
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/hackathon_max
-      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/hackathon_max
     command: >
       sh -c "
       alembic upgrade head &&
