@@ -14,6 +14,11 @@ class MessageHandler:
         chat_id = message["recipient"]["chat_id"]
         user_id = message["sender"]["user_id"]
 
+        self.user_service.update_chat_id(
+            user_id=user_id,
+            chat_id=chat_id,
+        )
+
         print(f"Получено от {user_id}: {text}")
 
         if text.lower() == "/start":

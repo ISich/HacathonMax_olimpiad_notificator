@@ -82,6 +82,11 @@ class User(Base):
         nullable=False,
     )
 
+    max_chat_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+    )
+
     grade: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,

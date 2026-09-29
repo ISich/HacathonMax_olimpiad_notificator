@@ -249,6 +249,10 @@ class CallbackHandler:
 
         # Если редактировали предметы из профиля
         if user.edit_mode == "subjects":
+            self.user_service.remove_irrelevant_olympiads(
+                user_id
+            )
+
             self.user_service.finish_subjects_edit(
                 user_id
             )
@@ -257,7 +261,9 @@ class CallbackHandler:
                 message_id=message_id,
                 text=(
                     "✓ Предметы изменены.\n\n"
-                    f"Предметы: {', '.join(subject_names)}"
+                    f"Предметы: {', '.join(subject_names)}\n\n"
+                    "Олимпиады по удалённым предметам "
+                    "удалены из сохранённых."
                 )
             )
 
@@ -493,7 +499,7 @@ class CallbackHandler:
             )
             return
 
-        page_size = 2
+        page_size = 5
 
         total_pages = max(
             1,
@@ -507,10 +513,19 @@ class CallbackHandler:
 
         page_olympiads = user.olympiads[start:end]
 
-        olympiad_names = [
-            f"• {olympiad.name} — {olympiad.level} уровень"
-            for olympiad in page_olympiads
-        ]
+        olympiad_names = []
+
+        for olympiad in page_olympiads:
+            subjects = ", ".join(
+                subject.name
+                for subject in olympiad.subjects
+            )
+
+            olympiad_names.append(
+                f"• {olympiad.name}\n"
+                f"  Предмет: {subjects}\n"
+                f"  Уровень: {olympiad.level}"
+            )
 
         self.max_client.edit_message(
             message_id=message_id,

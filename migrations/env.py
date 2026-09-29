@@ -29,6 +29,7 @@ from app.database.base import Base
 from app.models.subject import Subject
 from app.models.olympiad import Olympiad, OlympiadStage
 from app.models.user import User
+from app.models.notification import NotificationHistory
 
 target_metadata = Base.metadata
 

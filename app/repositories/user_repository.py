@@ -2,6 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models.user import User
+from app.models.olympiad import Olympiad
+from app.models.subject import Subject
 
 
 class UserRepository:
@@ -39,3 +41,14 @@ class UserRepository:
     def save(self, user: User) -> None:
         self.session.add(user)
         self.session.commit()
+
+    def get_all_with_olympiads(self) -> list[User]:
+        return list(
+            self.session.scalars(
+                select(User)
+                .options(
+                    selectinload(User.olympiads)
+                    .selectinload(Olympiad.stages)
+                )
+            ).all()
+        )

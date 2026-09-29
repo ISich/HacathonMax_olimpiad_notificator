@@ -6,6 +6,7 @@ from app.bot.callback_handlers import CallbackHandler
 
 from app.services.user_servics import UserService
 from app.services.olympiad_service import OlympiadService
+from app.services.notification_worker import NotificationWorker
 
 from app.repositories.user_repository import UserRepository
 from app.repositories.olympiad_repository import OlympiadRepository
@@ -25,6 +26,13 @@ def main():
     )
 
     max_client.set_commands(BOT_COMMANDS)
+
+    notification_worker = NotificationWorker(
+        max_client=max_client,
+        interval_seconds=3600,
+    )
+
+    notification_worker.start()
 
     # Пока держим одну DB-сессию на время работы бота.
     # Позже перед деплоем сделаем нормальный lifecycle сессий.

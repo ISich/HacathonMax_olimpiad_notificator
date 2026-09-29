@@ -164,3 +164,64 @@ def test_subject_edit_does_not_finish_before_done(db_session):
 
     assert user.edit_mode == "subjects"
     assert service.get_subjects(123) == {"math"}
+
+def test_remove_irrelevant_olympiads(db_session):
+    service = create_service(db_session)
+
+    user = service.get_or_create_user(123)
+
+    # Выбираем два предмета
+    service.toggle_subject(123, "math")
+    service.toggle_subject(123, "informatics")
+
+    # Берём предметы из БД
+    math = next(
+        subject
+        for subject in user.subjects
+        if subject.code == "math"
+    )
+
+    informatics = next(
+        subject
+        for subject in user.subjects
+        if subject.code == "informatics"
+    )
+
+    # Создаём две олимпиады
+    from app.models.olympiad import Olympiad
+
+    math_olympiad = Olympiad(
+        external_id="test_math",
+        name="Олимпиада по математике",
+        subjects=[math],
+    )
+
+    informatics_olympiad = Olympiad(
+        external_id="test_informatics",
+        name="Олимпиада по информатике",
+        subjects=[informatics],
+    )
+
+    db_session.add_all([
+        math_olympiad,
+        informatics_olympiad,
+    ])
+    db_session.commit()
+
+    # Подписываем пользователя на обе
+    service.set_olympiads(
+        123,
+        [math_olympiad, informatics_olympiad]
+    )
+
+    # Пользователь убирает информатику
+    service.toggle_subject(
+        123,
+        "informatics"
+    )
+
+    # Удаляем олимпиады по больше не выбранным предметам
+    service.remove_irrelevant_olympiads(123)
+
+    assert len(user.olympiads) == 1
+    assert user.olympiads[0].name == "Олимпиада по математике"

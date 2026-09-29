@@ -186,3 +186,33 @@ class UserService:
         user.edit_mode = None
 
         self.user_repository.save(user)
+
+    def remove_irrelevant_olympiads(self, user_id: int):
+        user = self.get_or_create_user(user_id)
+
+        selected_subject_ids = {
+            subject.id
+            for subject in user.subjects
+        }
+
+        user.olympiads[:] = [
+            olympiad
+            for olympiad in user.olympiads
+            if any(
+                subject.id in selected_subject_ids
+                for subject in olympiad.subjects
+            )
+        ]
+
+        self.user_repository.save(user)
+
+    def update_chat_id(
+            self,
+            user_id: int,
+            chat_id: int,
+    ):
+        user = self.get_or_create_user(user_id)
+
+        if user.max_chat_id != chat_id:
+            user.max_chat_id = chat_id
+            self.user_repository.save(user)
