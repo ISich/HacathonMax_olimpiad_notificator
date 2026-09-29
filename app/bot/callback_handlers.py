@@ -5,7 +5,8 @@ from app.bot.keyboards import (
     grade_keyboard,
     my_olympiads_keyboard, profile_keyboard,
     specific_olympiads_keyboard,
-    setup_complete_keyboard
+    setup_complete_keyboard,
+    deadlines_keyboard
 )
 from app.constants import SUBJECTS, AVAILABLE_SUBJECTS
 
@@ -130,6 +131,13 @@ class CallbackHandler:
             self.handle_profile_deadlines(
                 user_id=user_id,
                 message_id=message_id
+            )
+
+        elif payload.startswith("deadlines:page:"):
+            self.handle_deadlines_page(
+                user_id=user_id,
+                message_id=message_id,
+                payload=payload
             )
 
         elif payload == "profile:back":
@@ -631,6 +639,7 @@ class CallbackHandler:
             self,
             user_id,
             message_id,
+            page=0,
     ):
         user = self.user_service.get_user(user_id)
 
@@ -648,12 +657,15 @@ class CallbackHandler:
         unknown_events = []
 
         for olympiad in user.olympiads:
+
             subjects_text = ", ".join(
                 subject.name
                 for subject in olympiad.subjects
             )
+
             for stage in olympiad.stages:
 
+                # Точные даты
                 events = [
                     (
                         stage.registration_start,
@@ -675,6 +687,7 @@ class CallbackHandler:
 
                 for event_date, event_name in events:
 
+                    # None больше НЕ считается неизвестным сроком
                     if event_date is not None:
                         dated_events.append(
                             (
@@ -684,60 +697,116 @@ class CallbackHandler:
                                 event_name,
                             )
                         )
-                    else:
-                        unknown_events.append(
-                            (
-                                olympiad.name,
-                                subjects_text,
-                                event_name,
-                            )
-                        )
 
+                # raw_value нужен только тогда, когда
+                # точную дату этапа определить не удалось.
+                if (
+                        stage.raw_value
+                        and stage.stage_start is None
+                        and stage.stage_end is None
+                ):
+                    unknown_events.append(
+                        (
+                            olympiad.name,
+                            subjects_text,
+                            stage.name,
+                            stage.raw_value,
+                        )
+                    )
+
+        # Сначала ближайшие события
         dated_events.sort(
             key=lambda item: item[0]
         )
 
-        lines = ["📅 Все сроки:\n"]
+        # Формируем готовые блоки.
+        # Один элемент списка = одно событие.
+        event_blocks = []
 
-        for event_date, olympiad_name, subjects_text, event_name in dated_events:
-            lines.append(
-                f"{event_date:%d.%m.%Y} — "
-                f"{olympiad_name}\n"
+        for (
+                event_date,
+                olympiad_name,
+                subjects_text,
+                event_name,
+        ) in dated_events:
+            event_blocks.append(
+                f"{event_date:%d.%m.%Y} — {olympiad_name}\n"
                 f"📚 {subjects_text}\n"
                 f"• {event_name}"
             )
 
-        if unknown_events:
-            lines.append(
-                "\n❔ Даты пока не определены:"
+        # Неопределённые сроки идут после всех точных
+        for (
+                olympiad_name,
+                subjects_text,
+                stage_name,
+                raw_value,
+        ) in unknown_events:
+            event_blocks.append(
+                f"❔ {olympiad_name}\n"
+                f"📚 {subjects_text}\n"
+                f"• {stage_name}: {raw_value}"
             )
 
-            for olympiad_name, subjects_text, event_name in unknown_events:
-                lines.append(
-                    f"{olympiad_name}\n"
-                    f"📚 {subjects_text}\n"
-                    f"• {event_name}"
-                )
+        if not event_blocks:
+            self.max_client.edit_message(
+                message_id=message_id,
+                text=(
+                    "📅 Для сохранённых олимпиад "
+                    "пока нет известных сроков."
+                ),
+                attachments=[
+                    profile_keyboard()
+                ]
+            )
+            return
+
+        # Не отправляем огромный текст одним сообщением.
+        page_size = 6
+
+        total_pages = max(
+            1,
+            (len(event_blocks) + page_size - 1) // page_size
+        )
+
+        page = max(
+            0,
+            min(page, total_pages - 1)
+        )
+
+        start = page * page_size
+        end = start + page_size
+
+        page_events = event_blocks[start:end]
+
+        text = (
+                "📅 Все сроки:\n\n"
+                + "\n\n".join(page_events)
+        )
 
         self.max_client.edit_message(
             message_id=message_id,
-            text="\n\n".join(lines),
+            text=text,
             attachments=[
-                {
-                    "type": "inline_keyboard",
-                    "payload": {
-                        "buttons": [
-                            [
-                                {
-                                    "type": "callback",
-                                    "text": "← Назад",
-                                    "payload": "profile:back"
-                                }
-                            ]
-                        ]
-                    }
-                }
+                deadlines_keyboard(
+                    page=page,
+                    total_pages=total_pages,
+                )
             ]
+        )
+
+    def handle_deadlines_page(
+            self,
+            user_id,
+            message_id,
+            payload,
+    ):
+        page = int(payload.split(":")[2])
+
+        self.handle_profile_deadlines(
+            user_id=user_id,
+            message_id=message_id,
+            page=page,
         )
 
     def handle_remove_olympiad(

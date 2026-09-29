@@ -26,7 +26,16 @@ class FakeNotificationRepository:
         stage_id,
         notification_type,
     ):
-        return self.already_sent
+        if self.already_sent:
+            return True
+
+        return any(
+            item["user_id"] == user_id
+            and item["olympiad_id"] == olympiad_id
+            and item["stage_id"] == stage_id
+            and item["notification_type"] == notification_type
+            for item in self.added
+        )
 
     def add(
         self,
@@ -204,3 +213,40 @@ def test_nothing_is_sent_when_no_notifications():
     assert sent == 0
     assert max_client.messages == []
     assert notification_repository.added == []
+
+def test_notification_is_not_sent_twice():
+
+    user, notification = make_test_data()
+
+    user_repository = FakeUserRepository([user])
+
+    notification_repository = FakeNotificationRepository(
+        already_sent=False
+    )
+
+    notification_service = FakeNotificationService(
+        [notification]
+    )
+
+    max_client = FakeMaxClient()
+
+    sender = NotificationSender(
+        user_repository=user_repository,
+        notification_repository=notification_repository,
+        notification_service=notification_service,
+        max_client=max_client,
+    )
+
+    first_sent = sender.send_all(
+        today=date(2026, 11, 6)
+    )
+
+    second_sent = sender.send_all(
+        today=date(2026, 11, 6)
+    )
+
+    assert first_sent == 1
+    assert second_sent == 0
+
+    assert len(max_client.messages) == 1
+    assert len(notification_repository.added) == 1

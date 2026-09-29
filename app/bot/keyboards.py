@@ -352,3 +352,49 @@ def setup_complete_keyboard():
             ]
         }
     }
+
+def deadlines_keyboard(
+    page: int,
+    total_pages: int,
+):
+    buttons = []
+
+    if total_pages > 1:
+        navigation = []
+
+        if page > 0:
+            navigation.append({
+                "type": "callback",
+                "text": "◀️",
+                "payload": f"deadlines:page:{page - 1}"
+            })
+
+        navigation.append({
+            "type": "callback",
+            "text": f"{page + 1} / {total_pages}",
+            "payload": "deadlines:page_info"
+        })
+
+        if page < total_pages - 1:
+            navigation.append({
+                "type": "callback",
+                "text": "▶️",
+                "payload": f"deadlines:page:{page + 1}"
+            })
+
+        buttons.append(navigation)
+
+    buttons.append([
+        {
+            "type": "callback",
+            "text": "← Назад",
+            "payload": "profile:back"
+        }
+    ])
+
+    return {
+        "type": "inline_keyboard",
+        "payload": {
+            "buttons": buttons
+        }
+    }

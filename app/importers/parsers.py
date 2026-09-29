@@ -12,8 +12,10 @@ class DateRange:
 
 def parse_grades(value) -> list[int]:
     """
+    Поддерживаем варианты:
     '7–11' -> [7, 8, 9, 10, 11]
     '9-11' -> [9, 10, 11]
+    '8-11/СПО' -> [8, 9, 10, 11]
     '8, 10, 11' -> [8, 10, 11]
     10 -> [10]
     """
@@ -29,25 +31,34 @@ def parse_grades(value) -> list[int]:
     # Приводим разные виды тире к обычному
     text = text.replace("–", "-").replace("—", "-")
 
-    if "-" in text:
-        parts = text.split("-")
+    # Отбрасываем пометки вроде "/СПО"
+    text = text.split("/")[0].strip()
 
-        if len(parts) == 2:
-            start = int(parts[0].strip())
-            end = int(parts[1].strip())
+    # Диапазон классов, например 7-11
+    range_match = re.fullmatch(
+        r"(\d{1,2})\s*-\s*(\d{1,2})",
+        text,
+    )
 
-            return list(range(start, end + 1))
+    if range_match:
+        start = int(range_match.group(1))
+        end = int(range_match.group(2))
 
+        return list(range(start, end + 1))
+
+    # Перечисление классов, например 8, 10, 11
     if "," in text:
         return [
             int(part.strip())
             for part in text.split(",")
+            if part.strip().isdigit()
         ]
 
     return [int(text)]
 
 
 def parse_level(value) -> int | None:
+
     if value is None:
         return None
 
@@ -64,12 +75,24 @@ def parse_level(value) -> int | None:
 
 def parse_date_range(value) -> DateRange:
     """
-    Поддерживаем пока основные варианты из нашей таблицы:
+    Поддерживаем основные варианты из таблицы:
 
     '01.12.2026 - 01.01.2027'
     'До 20.10.2026'
     'С 07.09.2026'
     '11.10.2026'
+    '19.10.2026 – 06.11.2026 (до 11:00 НСК)'
+
+    Если в значении указано несколько конкретных дат,
+    используем самую раннюю как начало и самую позднюю
+    как окончание.
+
+    Значения без конкретных дат, например:
+    'Февраль 2027'
+    'Автоматически по результатам отбора'
+    'анонсируется позже'
+
+    сохраняются в raw_value.
     """
 
     if value is None:
@@ -78,7 +101,7 @@ def parse_date_range(value) -> DateRange:
     if isinstance(value, datetime):
         return DateRange(
             start=value,
-            end=value
+            end=value,
         )
 
     text = str(value).strip()
@@ -87,11 +110,16 @@ def parse_date_range(value) -> DateRange:
         return DateRange()
 
     # Excel/люди могут использовать разные тире
-    normalized = text.replace("–", "-").replace("—", "-")
+    normalized = (
+        text
+        .replace("–", "-")
+        .replace("—", "-")
+    )
 
+    # Ищем все конкретные даты формата ДД.ММ.ГГГГ
     dates = re.findall(
         r"\d{1,2}\.\d{1,2}\.\d{4}",
-        normalized
+        normalized,
     )
 
     parsed_dates = [
@@ -100,25 +128,32 @@ def parse_date_range(value) -> DateRange:
     ]
 
     # До 20.10.2026
-    if normalized.lower().startswith("до ") and parsed_dates:
+    if (
+        normalized.lower().startswith("до ")
+        and parsed_dates
+    ):
         return DateRange(
             end=parsed_dates[0],
-            raw_value=text
+            raw_value=text,
         )
 
     # С 07.09.2026
-    if normalized.lower().startswith("с ") and parsed_dates:
+    if (
+        normalized.lower().startswith("с ")
+        and parsed_dates
+    ):
         return DateRange(
             start=parsed_dates[0],
-            raw_value=text
+            raw_value=text,
         )
 
-    # Две даты = диапазон
+    # Несколько дат.
+    # Берём самую раннюю и самую позднюю.
     if len(parsed_dates) >= 2:
         return DateRange(
-            start=parsed_dates[0],
-            end=parsed_dates[1],
-            raw_value=text
+            start=min(parsed_dates),
+            end=max(parsed_dates),
+            raw_value=text,
         )
 
     # Одна конкретная дата
@@ -126,11 +161,14 @@ def parse_date_range(value) -> DateRange:
         return DateRange(
             start=parsed_dates[0],
             end=parsed_dates[0],
-            raw_value=text
+            raw_value=text,
         )
 
-    # Например "ноябрь 2026", "февраль 2027",
-    # "Автоматически"
+    # Например:
+    # "ноябрь 2026"
+    # "февраль 2027"
+    # "Автоматически по результатам отбора"
+    # "анонсируется позже"
     return DateRange(
-        raw_value=text
+        raw_value=text,
     )

@@ -3,6 +3,12 @@ from types import SimpleNamespace
 
 from app.services.notification_service import NotificationService
 
+def make_subjects():
+    return [
+        SimpleNamespace(
+            name="Математика"
+        )
+    ]
 
 def test_registration_starts_today():
 
@@ -18,6 +24,7 @@ def test_registration_starts_today():
 
     olympiad = SimpleNamespace(
         name="Тестовая олимпиада",
+        subjects=make_subjects(),
         stages=[stage],
     )
 
@@ -35,6 +42,7 @@ def test_registration_starts_today():
     assert len(notifications) == 1
     assert notifications[0]["type"] == "registration_start"
     assert notifications[0]["olympiad"] is olympiad
+    assert "📚 Математика" in notifications[0]["text"]
 
 def test_registration_deadline_in_three_days():
 
@@ -50,6 +58,7 @@ def test_registration_deadline_in_three_days():
 
     olympiad = SimpleNamespace(
         name="Тестовая олимпиада",
+        subjects=make_subjects(),
         stages=[stage],
     )
 
@@ -82,6 +91,7 @@ def test_no_notifications():
 
     olympiad = SimpleNamespace(
         name="Тестовая олимпиада",
+        subjects=make_subjects(),
         stages=[stage],
     )
 
@@ -121,11 +131,13 @@ def test_multiple_olympiads():
 
     first_olympiad = SimpleNamespace(
         name="Первая олимпиада",
+        subjects=make_subjects(),
         stages=[first_stage],
     )
 
     second_olympiad = SimpleNamespace(
         name="Вторая олимпиада",
+        subjects=make_subjects(),
         stages=[second_stage],
     )
 
@@ -169,6 +181,7 @@ def test_stage_starts_today():
 
     olympiad = SimpleNamespace(
         name="Тестовая олимпиада",
+        subjects=make_subjects(),
         stages=[stage],
     )
 
@@ -187,6 +200,7 @@ def test_stage_starts_today():
     assert notifications[0]["type"] == "stage_start"
     assert notifications[0]["olympiad"] is olympiad
     assert notifications[0]["stage"] is stage
+    assert "📚 Математика" in notifications[0]["text"]
 
 def test_stage_deadline_in_three_days():
 
@@ -202,6 +216,7 @@ def test_stage_deadline_in_three_days():
 
     olympiad = SimpleNamespace(
         name="Тестовая олимпиада",
+        subjects=make_subjects(),
         stages=[stage],
     )
 

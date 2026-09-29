@@ -25,6 +25,10 @@ class NotificationService:
         notifications = []
 
         for olympiad in user.olympiads:
+            subjects_text = ", ".join(
+                subject.name
+                for subject in olympiad.subjects
+            )
             for stage in olympiad.stages:
 
                 registration_start = self._to_date(
@@ -43,6 +47,7 @@ class NotificationService:
                         "text": (
                             "📅 Сегодня начинается регистрация!\n\n"
                             f"🏆 {olympiad.name}\n"
+                            f"📚 {subjects_text}\n"
                             f"Этап: {stage.name}"
                         ),
                     })
@@ -60,6 +65,7 @@ class NotificationService:
                             "⏰ До окончания регистрации "
                             "осталось 3 дня!\n\n"
                             f"🏆 {olympiad.name}\n"
+                            f"📚 {subjects_text}\n"
                             f"Этап: {stage.name}\n"
                             f"Регистрация до: "
                             f"{registration_end:%d.%m.%Y}"
@@ -82,6 +88,7 @@ class NotificationService:
                         "text": (
                             "🚀 Сегодня начинается этап олимпиады!\n\n"
                             f"🏆 {olympiad.name}\n"
+                            f"📚 {subjects_text}\n"
                             f"Этап: {stage.name}"
                         ),
                     })
@@ -97,6 +104,7 @@ class NotificationService:
                         "text": (
                             "⏰ До окончания этапа осталось 3 дня!\n\n"
                             f"🏆 {olympiad.name}\n"
+                            f"📚 {subjects_text}\n"
                             f"Этап: {stage.name}\n"
                             f"Окончание: {stage_end:%d.%m.%Y}"
                         ),

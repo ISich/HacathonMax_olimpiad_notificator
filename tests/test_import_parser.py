@@ -67,3 +67,63 @@ def test_parse_empty_date():
 
     assert result.start is None
     assert result.end is None
+
+def test_parse_date_single():
+    result = parse_date_range("11.10.2026")
+
+    assert result.start == datetime(2026, 10, 11)
+    assert result.end == datetime(2026, 10, 11)
+
+
+def test_parse_date_range_with_en_dash():
+    result = parse_date_range(
+        "01.12.2026 – 01.01.2027"
+    )
+
+    assert result.start == datetime(2026, 12, 1)
+    assert result.end == datetime(2027, 1, 1)
+
+
+def test_parse_date_range_with_em_dash():
+    result = parse_date_range(
+        "01.12.2026 — 01.01.2027"
+    )
+
+    assert result.start == datetime(2026, 12, 1)
+    assert result.end == datetime(2027, 1, 1)
+
+
+def test_parse_text_date_automatically():
+    result = parse_date_range("Автоматически")
+
+    assert result.start is None
+    assert result.end is None
+    assert result.raw_value == "Автоматически"
+
+
+def test_parse_date_until_keeps_raw_value():
+    result = parse_date_range("До 20.10.2026")
+
+    assert result.start is None
+    assert result.end == datetime(2026, 10, 20)
+    assert result.raw_value == "До 20.10.2026"
+
+
+def test_parse_date_from_keeps_raw_value():
+    result = parse_date_range("С 07.09.2026")
+
+    assert result.start == datetime(2026, 9, 7)
+    assert result.end is None
+    assert result.raw_value == "С 07.09.2026"
+
+
+def test_parse_empty_string_date():
+    result = parse_date_range("")
+
+    assert result.start is None
+    assert result.end is None
+    assert result.raw_value is None
+
+
+def test_parse_empty_string_level():
+    assert parse_level("") is None
